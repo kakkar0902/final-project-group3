@@ -14,7 +14,7 @@ git switch <new-branch-name>
 git switch main
 ```
 
-## Coding, Committing and Pushing Your Work to GitHub
+## Committing and Pushing Your Work to GitHub
 <span style="color: red;">NOTE: DO NOT ADD OR MODIFY CODE IN THE MAIN BRANCH.  ALWAYS WORK IN YOUR DEVELOPMENT BRANCH</span>
 
 ### Check Your Current Branch
@@ -47,7 +47,7 @@ You can also both Commit and Push by selecting the Source Control section of the
 ![alt text](./images/commit-and-push.png "git commit and push in VSCode")<br>
 
 
-## Creating a Pull Request (PR)
+## Creating a Pull Request
 When you are ready to create a Pull Request (request to merge into the upstream repo), navigate to your fork repo in [GitHub](https://www.github.com). You should see a message indicating that you can create a pull request for your work.  This will be similar to the following:<br><br>
 ![alt text](./images/compare-and-pull-request.png "compare and pull request")<br>  
 
