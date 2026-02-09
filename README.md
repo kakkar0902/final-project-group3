@@ -29,3 +29,8 @@
 * [Update Watching Notifications](./docs/setup-gethub-notifications.md#update-watching-notifications)
 * [Participating, @mentions and custom](./docs/setup-gethub-notifications.md#participating-mentions-and-custom)
 * [Email Updates](./docs/setup-gethub-notifications.md#email-updates)
+
+## [Testing](./docs/testing.md)
+* [What is Cypress?](./docs/testing.md#what-is-cypress)
+* [When to use Vitest v/s Cypress?](./docs/testing.md#when-to-use-vitest-vs-cypress)
+* [Testing your changes](./docs/testing.md#testing-your-changes)
