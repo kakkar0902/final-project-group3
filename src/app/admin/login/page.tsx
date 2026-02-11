@@ -3,21 +3,24 @@ import { signIn } from "@/lib/auth";
 export default function AdminLogin() {
   return (
     <div className="pt-16">
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full p-8 bg-white rounded-lg shadow-md">
-          <h1 className="text-3xl font-bold mb-6 text-center">Admin Login</h1>
-          <p className="text-gray-600 text-center mb-6">
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="max-w-md w-full p-8 bg-card rounded-xl shadow-md border border-border">
+          <h1 className="text-3xl font-bold mb-6 text-center text-foreground">Admin Login</h1>
+          <p className="text-muted-foreground text-center mb-6">
             Sign in to manage Shoreline Woodworks
           </p>
           <form
             action={async () => {
               "use server";
-              await signIn("google", { redirectTo: "/admin" });
+              await signIn("google", { 
+                redirectTo: "/admin",
+                redirect: true,
+              });
             }}
           >
             <button
               type="submit"
-              className="w-full bg-white hover:bg-gray-50 text-gray-800 font-semibold py-3 px-4 border border-gray-300 rounded-lg shadow flex items-center justify-center gap-3"
+              className="w-full bg-card hover:bg-muted text-foreground font-semibold py-3 px-4 border border-border rounded-lg shadow flex items-center justify-center gap-3 transition-colors"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
