@@ -1,6 +1,6 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { redirect } from 'next/navigation';
 import { useState } from 'react';
 import ProjectUploadForm from '@/components/ProjectUploadForm';
@@ -65,18 +65,33 @@ export default function AdminPage() {
     setEditingProject(null);
   };
 
+  const handleLogout = async () => {
+    await signOut({ 
+      callbackUrl: '/admin/login',
+      redirect: true 
+    });
+  };
+
   return (
     <div className="pt-16">
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-          {/* Page Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-4 text-foreground">
-              Admin Dashboard
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              Manage your website content and settings
-            </p>
+          {/* Page Header with Logout Button */}
+          <div className="mb-8 flex justify-between items-start">
+            <div>
+              <h1 className="text-4xl font-bold mb-4 text-foreground">
+                Admin Dashboard
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Manage your website content and settings
+              </p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-accent transition-colors shadow"
+            >
+              Logout
+            </button>
           </div>
 
           {/* Tab Navigation */}
