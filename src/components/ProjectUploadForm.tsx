@@ -251,7 +251,7 @@ export default function ProjectUploadForm({ onSuccess, editProject }: ProjectUpl
         {/* Image Upload Section */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">
-            Project Image
+            Project Images
           </label>
           
           {imagePreview ? (
@@ -285,7 +285,7 @@ export default function ProjectUploadForm({ onSuccess, editProject }: ProjectUpl
                 htmlFor="image"
                 className="cursor-pointer inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-accent transition-colors shadow"
               >
-                Click to upload image
+                Click to upload images
               </label>
               <p className="text-xs text-muted-foreground mt-2">
                 JPEG, PNG, WebP, or GIF (max 10MB)
