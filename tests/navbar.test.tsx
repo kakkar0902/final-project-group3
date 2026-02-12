@@ -18,6 +18,18 @@ vi.mock("next-themes", () => ({
 	useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
 }));
 
+/**
+ * Mock next-auth/react so useSession doesn't require a SessionProvider in the test.
+ * Without this, useSession() would throw an error.
+ */
+vi.mock("next-auth/react", () => ({
+	useSession: vi.fn(() => ({
+		data: null,
+		status: "unauthenticated",
+	})),
+	signOut: vi.fn(),
+}));
+
 describe("Navbar", () => {
 	/** Ensures the nav landmark and logo link are present. */
 	it("renders the navbar", () => {
