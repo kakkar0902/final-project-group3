@@ -108,7 +108,13 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     const imagePublicId: string | null = existing.imagePublicId;
 
     if (removeImage === "true") {
-      // Remove all images, then optionally add new ones
+      // Remove all images, then optionally add new ones - must have new images
+      if (imageFiles.length === 0) {
+        return NextResponse.json(
+          { error: "At least one image is required. Add new images before removing all." },
+          { status: 400 },
+        );
+      }
       const publicIdsToDelete = new Set(existing.images.map((i) => i.imagePublicId));
       if (existing.imagePublicId) publicIdsToDelete.add(existing.imagePublicId);
       for (const publicId of publicIdsToDelete) {

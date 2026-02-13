@@ -6,6 +6,42 @@ cloudinary.config({
 });
 
 /**
+ * Parameters for a single client-side signed upload. The client sends these
+ * (plus the file) to Cloudinary; only your server can generate valid signatures.
+ */
+export interface SignedUploadParams {
+  cloudName: string;
+  apiKey: string;
+  timestamp: number;
+  signature: string;
+  folder: string;
+}
+
+/**
+ * Generate signed upload parameters for client-side uploads. The client uses
+ * these with the file in a POST to Cloudinary; the signature proves the upload
+ * was authorized by your server. Safe to call per batch of uploads (same params
+ * can be used for multiple files within a short period).
+ */
+export function getSignedUploadParams(): SignedUploadParams {
+  const config = cloudinary.config();
+  const cloudName = config?.cloud_name;
+  const apiKey = config?.api_key;
+  const apiSecret = config?.api_secret;
+  if (!cloudName || !apiKey || !apiSecret) {
+    throw new Error("Cloudinary is not configured (CLOUDINARY_URL)");
+  }
+  const folder = "projects";
+  const timestamp = Math.round(Date.now() / 1000);
+  const paramsToSign = { folder, timestamp };
+  const signature = (cloudinary.utils as { api_sign_request: (params: Record<string, unknown>, secret: string) => string }).api_sign_request(
+    paramsToSign,
+    apiSecret,
+  );
+  return { cloudName, apiKey, timestamp, signature, folder };
+}
+
+/**
  * Normalized result of an image upload to Cloudinary.
  */
 export interface UploadResult {

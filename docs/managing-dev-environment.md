@@ -62,6 +62,8 @@
 
 [Cloudinary Docs](https://cloudinary.com/documentation/transformation_reference)
 
+**Client-side project uploads** use **signed** uploads: the browser uploads directly to Cloudinary (so the "Uploading..." progress bar reflects real upload progress), and the server issues a one-time signature so only authorized admins can upload. Only `CLOUDINARY_URL` is required; no upload preset is needed.
+
 Cloudinary (Free Tier Limit) Details:
 - Maximum image file size: 10 MB
 - Maximum video file size: 100 MB

@@ -38,6 +38,7 @@ export default function ProjectUploadForm({ onSuccess, editProject }: ProjectUpl
   const [thumbnailIndex, setThumbnailIndex] = useState(0);
   const [removeImage, setRemoveImage] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -148,59 +149,162 @@ export default function ProjectUploadForm({ onSuccess, editProject }: ProjectUpl
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    setLoading(true);
+
     setError(null);
     setSuccess(false);
 
-    try {
-      // Create FormData object
+    const totalImages = existingImages.length + imagePreviews.length;
+
+    // Require at least one image for create; for edit, block if removing all without adding new ones
+    if (!editProject) {
+      if (totalImages === 0) {
+        setError('Please add at least one image.');
+        return;
+      }
+    } else if (totalImages === 0) {
+      setError('Please add at least one image. Cannot save with no images.');
+      return;
+    }
+
+    setLoading(true);
+    setUploadProgress(0);
+    const thumbIdx = totalImages > 0 ? Math.min(thumbnailIndex, totalImages - 1) : 0;
+
+    // Edit project: keep FormData flow (server uploads to Cloudinary)
+    if (editProject) {
       const formData = new FormData();
       formData.append('title', title);
       formData.append('description', description);
       formData.append('category', category);
       formData.append('featured', 'false');
-
-      imageFiles.forEach((file) => {
-        formData.append('image', file);
-      });
-
-      if (removeImage) {
-        formData.append('removeImage', 'true');
-      }
-
-      const totalImages = existingImages.length + imagePreviews.length;
-      const thumbIdx = totalImages > 0 ? Math.min(thumbnailIndex, totalImages - 1) : 0;
+      imageFiles.forEach((file) => formData.append('image', file));
+      if (removeImage) formData.append('removeImage', 'true');
       formData.append('thumbnailIndex', String(thumbIdx));
 
-      // Determine endpoint and method
-      const endpoint = editProject 
-        ? `/api/projects/${editProject.id}`
-        : '/api/projects';
-      const method = editProject ? 'PATCH' : 'POST';
-
-      const response = await fetch(endpoint, {
-        method,
-        body: formData,
-        credentials: 'include',
+      const xhr = new XMLHttpRequest();
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          setUploadProgress(Math.round((event.loaded / event.total) * 100));
+        }
       });
+      xhr.addEventListener('load', () => {
+        setUploadProgress(100);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const project = JSON.parse(xhr.responseText);
+            setSuccess(true);
+            onSuccess?.(project);
+          } catch {
+            setError('Invalid response from server');
+          }
+        } else {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            setError(data.error || 'Failed to save project');
+          } catch {
+            setError('Failed to save project');
+          }
+        }
+        setLoading(false);
+        setUploadProgress(0);
+      });
+      xhr.addEventListener('error', () => {
+        setError('Network error');
+        setLoading(false);
+        setUploadProgress(0);
+      });
+      xhr.open('PATCH', `/api/projects/${editProject.id}`);
+      xhr.withCredentials = true;
+      xhr.send(formData);
+      return;
+    }
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save project');
-      }
+    // Create project: upload images to Cloudinary from client (real progress), then POST JSON
+    if (imageFiles.length > 0) {
+      try {
+        const configRes = await fetch('/api/cloudinary-config', { credentials: 'include' });
+        if (!configRes.ok) {
+          const data = await configRes.json().catch(() => ({}));
+          throw new Error(data.error || 'Upload not configured');
+        }
+        const { cloudName, apiKey, timestamp, signature, folder } = await configRes.json();
+        const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
 
-      const project = await response.json();
-      
-      setSuccess(true);
-      
-      // Call success callback
-      if (onSuccess) {
-        onSuccess(project);
-      }
+        const totalBytes = imageFiles.reduce((sum, f) => sum + f.size, 0);
+        const loadedPerFile = new Array<number>(imageFiles.length).fill(0);
+        const updateProgress = () => {
+          const loaded = loadedPerFile.reduce((a, b) => a + b, 0);
+          setUploadProgress(totalBytes ? Math.round((loaded / totalBytes) * 100) : 100);
+        };
 
-      // Reset form if creating (not editing)
-      if (!editProject) {
+        const uploadedImages: { secureUrl: string; publicId: string }[] = [];
+        const uploadOne = (file: File, index: number): Promise<void> =>
+          new Promise((resolve, reject) => {
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('api_key', apiKey);
+            fd.append('timestamp', String(timestamp));
+            fd.append('signature', signature);
+            fd.append('folder', folder);
+            const xhr = new XMLHttpRequest();
+            xhr.upload.addEventListener('progress', (event) => {
+              if (event.lengthComputable) {
+                loadedPerFile[index] = event.loaded;
+                updateProgress();
+              }
+            });
+            xhr.addEventListener('load', () => {
+              loadedPerFile[index] = file.size;
+              updateProgress();
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  const result = JSON.parse(xhr.responseText);
+                  uploadedImages.push({
+                    secureUrl: result.secure_url,
+                    publicId: result.public_id,
+                  });
+                  resolve();
+                } catch {
+                  reject(new Error('Invalid Cloudinary response'));
+                }
+              } else {
+                try {
+                  const err = JSON.parse(xhr.responseText);
+                  reject(new Error(err.error?.message || 'Upload failed'));
+                } catch {
+                  reject(new Error('Upload failed'));
+                }
+              }
+            });
+            xhr.addEventListener('error', () => reject(new Error('Network error')));
+            xhr.open('POST', uploadUrl);
+            xhr.send(fd);
+          });
+
+        await Promise.all(imageFiles.map((file, i) => uploadOne(file, i)));
+        setUploadProgress(100);
+
+        const projectRes = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            title,
+            description,
+            category,
+            featured: false,
+            thumbnailIndex: thumbIdx,
+            uploadedImages,
+          }),
+        });
+
+        if (!projectRes.ok) {
+          const data = await projectRes.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to create project');
+        }
+        const project = await projectRes.json();
+        setSuccess(true);
+        onSuccess?.(project);
         setTitle('');
         setDescription('');
         setCategory('');
@@ -211,12 +315,15 @@ export default function ProjectUploadForm({ onSuccess, editProject }: ProjectUpl
         setRemoveImage(false);
         const fileInput = document.getElementById('image') as HTMLInputElement;
         if (fileInput) fileInput.value = '';
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Upload failed');
+      } finally {
+        setLoading(false);
+        setUploadProgress(0);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
+      return;
     }
+
   };
 
   return (
@@ -289,7 +396,7 @@ export default function ProjectUploadForm({ onSuccess, editProject }: ProjectUpl
         {/* Image Upload Section - multiple images */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">
-            Project Images
+            Project Images <span className="text-destructive">*</span>
           </label>
           <p className="text-xs text-muted-foreground mb-2">
             Click an image to set it as the project thumbnail (shown in project cards).
@@ -397,14 +504,30 @@ export default function ProjectUploadForm({ onSuccess, editProject }: ProjectUpl
           )}
         </div>
 
-        {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={loading || !title}
-          className="w-full py-3 px-6 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow"
-        >
-          {loading ? 'Saving...' : editProject ? 'Update Project' : 'Create Project'}
-        </button>
+        {/* Submit Button / Upload progress */}
+        <div className="space-y-2">
+          {loading ? (
+            <div className="relative w-full h-12 rounded-lg overflow-hidden bg-muted border border-border flex items-center justify-center">
+              <div
+                className="absolute inset-y-0 left-0 bg-primary text-primary-foreground transition-[width] duration-300 ease-out"
+                style={{ width: `${uploadProgress}%` }}
+              />
+              <span className="relative z-10 font-medium text-foreground">
+                {uploadProgress > 0 && uploadProgress < 100
+                  ? `Uploading... ${uploadProgress}%`
+                  : 'Uploading...'}
+              </span>
+            </div>
+          ) : (
+            <button
+              type="submit"
+              disabled={!title || (existingImages.length + imagePreviews.length === 0)}
+              className="w-full py-3 px-6 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow"
+            >
+              {editProject ? 'Update Project' : 'Create Project'}
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );

@@ -7,8 +7,8 @@
  * without real network calls or a real database.
  *
  * Scenarios covered:
- * - Success: valid payload with/without image; title-only payload; FormData
- *   trimming and optional fields (description, category, featured) are correct.
+ * - Success: valid payload with image; FormData trimming and optional fields.
+ * - Validation: at least one image required; missing or whitespace-only title → 400.
  * - Validation: missing or whitespace-only title → 400; invalid image type (e.g. SVG)
  *   or image over 10MB → 400 with specific error messages.
  * - Auth: requireAdmin is called; 401 when no/invalid session; 403 when not admin.
@@ -53,32 +53,17 @@ describe("POST /api/projects", () => {
     });
 
     /**
-     * With admin granted and valid FormData (title trimmed, optional fields present),
-     * the handler must call create with the correct data and return 201 and the created project.
+     * At least one image is required. When FormData has no images, the handler must
+     * return 400 and must not call create.
      */
-    it("successfully creates a new project with a valid payload and no image", async () => {
+    it("returns 400 when FormData has no images", async () => {
         (requireAdmin as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
             ok: true,
             session: {},
             response: null,
         });
 
-        const createdProject: ProjectApiResponse = {
-            id: "proj_1",
-            title: "New Project",
-            description: "A brand new project",
-            category: "Residential",
-            featured: true,
-            imageUrl: null,
-            imagePublicId: null,
-            createdAt: "2026-02-12T10:00:00.000Z",
-            updatedAt: "2026-02-12T10:00:00.000Z",
-        };
-
-        (prisma.project.create as ReturnType<typeof vi.fn>).mockResolvedValue(createdProject);
-
         const formData = new FormData();
-        // Intentionally include surrounding whitespace to verify trimming
         formData.set("title", "   New Project   ");
         formData.set("description", "A brand new project");
         formData.set("category", "Residential");
@@ -92,23 +77,10 @@ describe("POST /api/projects", () => {
         const res = await POST(req);
 
         expect(requireAdmin).toHaveBeenCalled();
-
-        expect(prisma.project.create).toHaveBeenCalledWith({
-            data: {
-                title: "New Project",
-                description: "A brand new project",
-                category: "Residential",
-                featured: true,
-                imageUrl: null,
-                imagePublicId: null,
-                images: { create: [] },
-            },
-            include: { images: { orderBy: { sortOrder: "asc" } } },
-        });
-
-        expect(res.status).toBe(201);
+        expect(prisma.project.create).not.toHaveBeenCalled();
+        expect(res.status).toBe(400);
         const body = await res.json();
-        expect(body).toEqual(createdProject);
+        expect(body).toEqual({ error: "At least one image is required" });
     });
 
     /**
@@ -186,6 +158,12 @@ describe("POST /api/projects", () => {
         };
 
         const req = {
+            headers: {
+                get: (name: string) =>
+                    name.toLowerCase() === "content-type"
+                        ? "multipart/form-data; boundary=----test"
+                        : null,
+            },
             formData: async () => fakeFormData,
         } as unknown as Request;
 
@@ -222,30 +200,15 @@ describe("POST /api/projects", () => {
     });
 
     /**
-     * Optional fields (description, category, featured, image) can be omitted; the
-     * handler must pass null/false and still return the created project with imageUrl
-     * and imagePublicId present (as null).
+     * At least one image is required. When only title is provided (no images), the
+     * handler must return 400 and must not call create.
      */
-    it("successfully creates a new project when only title is provided", async () => {
+    it("returns 400 when only title is provided without images", async () => {
         (requireAdmin as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
             ok: true,
             session: {},
             response: null,
         });
-
-        const createdProject: ProjectApiResponse = {
-            id: "proj_2",
-            title: "Title Only Project",
-            description: null,
-            category: null,
-            featured: false,
-            imageUrl: null,
-            imagePublicId: null,
-            createdAt: "2026-02-12T11:00:00.000Z",
-            updatedAt: "2026-02-12T11:00:00.000Z",
-        };
-
-        (prisma.project.create as ReturnType<typeof vi.fn>).mockResolvedValue(createdProject);
 
         const formData = new FormData();
         formData.set("title", "Title Only Project");
@@ -258,25 +221,40 @@ describe("POST /api/projects", () => {
         const res = await POST(req);
 
         expect(requireAdmin).toHaveBeenCalled();
+        expect(prisma.project.create).not.toHaveBeenCalled();
+        expect(res.status).toBe(400);
+        const body = await res.json();
+        expect(body).toEqual({ error: "At least one image is required" });
+    });
 
-        expect(prisma.project.create).toHaveBeenCalledWith({
-            data: {
-                title: "Title Only Project",
-                description: null,
-                category: null,
-                featured: false,
-                imageUrl: null,
-                imagePublicId: null,
-                images: { create: [] },
-            },
-            include: { images: { orderBy: { sortOrder: "asc" } } },
+    /**
+     * When JSON body has title but empty uploadedImages, the handler must return
+     * 400 and must not call create.
+     */
+    it("returns 400 when JSON payload has no images", async () => {
+        (requireAdmin as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+            ok: true,
+            session: {},
+            response: null,
         });
 
-        expect(res.status).toBe(201);
+        const req = new Request("http://localhost/api/projects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                title: "No Images Project",
+                description: "Test",
+                uploadedImages: [],
+            }),
+        });
+
+        const res = await POST(req);
+
+        expect(requireAdmin).toHaveBeenCalled();
+        expect(prisma.project.create).not.toHaveBeenCalled();
+        expect(res.status).toBe(400);
         const body = await res.json();
-        expect(body).toEqual(createdProject);
-        expect("imageUrl" in body).toBe(true);
-        expect("imagePublicId" in body).toBe(true);
+        expect(body).toEqual({ error: "At least one image is required" });
     });
 
     /**
@@ -450,6 +428,12 @@ describe("POST /api/projects", () => {
         };
 
         const req = {
+            headers: {
+                get: (name: string) =>
+                    name.toLowerCase() === "content-type"
+                        ? "multipart/form-data; boundary=----test"
+                        : null,
+            },
             formData: async () => fakeFormData,
         } as unknown as Request;
 
@@ -519,6 +503,12 @@ describe("POST /api/projects", () => {
         };
 
         const req = {
+            headers: {
+                get: (name: string) =>
+                    name.toLowerCase() === "content-type"
+                        ? "multipart/form-data; boundary=----test"
+                        : null,
+            },
             formData: async () => fakeFormData,
         } as unknown as Request;
 
@@ -584,6 +574,12 @@ describe("POST /api/projects", () => {
         };
 
         const req = {
+            headers: {
+                get: (name: string) =>
+                    name.toLowerCase() === "content-type"
+                        ? "multipart/form-data; boundary=----test"
+                        : null,
+            },
             formData: async () => fakeFormData,
         } as unknown as Request;
 
@@ -653,6 +649,12 @@ describe("POST /api/projects", () => {
         };
 
         const req = {
+            headers: {
+                get: (name: string) =>
+                    name.toLowerCase() === "content-type"
+                        ? "multipart/form-data; boundary=----test"
+                        : null,
+            },
             formData: async () => fakeFormData,
         } as unknown as Request;
 
@@ -734,6 +736,12 @@ describe("POST /api/projects", () => {
         };
 
         const req = {
+            headers: {
+                get: (name: string) =>
+                    name.toLowerCase() === "content-type"
+                        ? "multipart/form-data; boundary=----test"
+                        : null,
+            },
             formData: async () => fakeFormData,
         } as unknown as Request;
 
@@ -817,6 +825,12 @@ describe("POST /api/projects", () => {
         };
 
         const req = {
+            headers: {
+                get: (name: string) =>
+                    name.toLowerCase() === "content-type"
+                        ? "multipart/form-data; boundary=----test"
+                        : null,
+            },
             formData: async () => fakeFormData,
         } as unknown as Request;
 

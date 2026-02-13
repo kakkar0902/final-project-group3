@@ -56,22 +56,128 @@ export async function GET(req: Request) {
 /**
  * POST /api/projects
  *
- * Admin-only endpoint that creates a new project from multipart/form-data, optionally uploading
- * an image to Cloudinary. Requires a non-empty `title` field and validates image type and size.
+ * Admin-only. Creates a new project. Accepts either:
+ * - application/json with { title, description?, category?, featured?, thumbnailIndex?, uploadedImages? }
+ *   (uploadedImages = pre-uploaded to Cloudinary from client; progress is shown during that upload).
+ * - multipart/form-data with title and optional image files (server uploads to Cloudinary).
  */
 export async function POST(req: Request) {
-  // 1. Require authentication and verify user has isAdmin: true (from session, populated from DB in auth callback)
   const adminResult = await requireAdmin();
   if (!adminResult.ok) {
     return adminResult.response;
   }
 
+  const contentType = req.headers.get("content-type") ?? "";
+  const isJson = contentType.includes("application/json");
+
+  if (isJson) {
+    return handlePostJson(req);
+  }
+  return handlePostFormData(req);
+}
+
+async function handlePostJson(req: Request) {
+  try {
+    const body = await req.json();
+    const title = body?.title;
+    const description = body?.description;
+    const category = body?.category;
+    const featured = body?.featured;
+    const thumbnailIndexRaw = body?.thumbnailIndex;
+    const uploadedImagesRaw = body?.uploadedImages;
+
+    if (!title || typeof title !== "string") {
+      return NextResponse.json(
+        { error: "Title is required" },
+        { status: 400 },
+      );
+    }
+    const titleTrimmed = title.trim();
+    if (!titleTrimmed) {
+      return NextResponse.json(
+        { error: "Title is required" },
+        { status: 400 },
+      );
+    }
+
+    const uploadedImages: { secureUrl: string; publicId: string }[] = [];
+    if (Array.isArray(uploadedImagesRaw)) {
+      for (const item of uploadedImagesRaw) {
+        if (
+          item &&
+          typeof item.secureUrl === "string" &&
+          typeof item.publicId === "string"
+        ) {
+          uploadedImages.push({
+            secureUrl: item.secureUrl,
+            publicId: item.publicId,
+          });
+        }
+      }
+    }
+
+    if (uploadedImages.length === 0) {
+      return NextResponse.json(
+        { error: "At least one image is required" },
+        { status: 400 },
+      );
+    }
+
+    const thumbnailIndex =
+      typeof thumbnailIndexRaw === "number" && Number.isInteger(thumbnailIndexRaw)
+        ? Math.min(
+            Math.max(0, thumbnailIndexRaw),
+            Math.max(0, uploadedImages.length - 1),
+          )
+        : typeof thumbnailIndexRaw === "string" && /^\d+$/.test(thumbnailIndexRaw)
+          ? Math.min(
+              Math.max(0, parseInt(thumbnailIndexRaw, 10)),
+              Math.max(0, uploadedImages.length - 1),
+            )
+          : 0;
+    const chosenImage = uploadedImages[thumbnailIndex] ?? uploadedImages[0] ?? null;
+    const imageUrl = chosenImage?.secureUrl ?? null;
+    const imagePublicId = chosenImage?.publicId ?? null;
+
+    const project = await prisma.project.create({
+      data: {
+        title: titleTrimmed,
+        description:
+          description != null && typeof description === "string"
+            ? description.trim() || null
+            : null,
+        category:
+          category != null && typeof category === "string"
+            ? category.trim() || null
+            : null,
+        featured: featured === true || featured === "true",
+        imageUrl,
+        imagePublicId,
+        images: {
+          create: uploadedImages.map((img, index) => ({
+            imageUrl: img.secureUrl,
+            imagePublicId: img.publicId,
+            sortOrder: index,
+          })),
+        },
+      },
+      include: { images: { orderBy: { sortOrder: "asc" } } },
+    });
+
+    return NextResponse.json(project, { status: 201 });
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to create project" },
+      { status: 500 },
+    );
+  }
+}
+
+async function handlePostFormData(req: Request) {
   const uploadedPublicIds: string[] = [];
 
   try {
-    // 2. Parse FormData from request
     const formData = await req.formData();
-
     const title = formData.get("title");
     const description = formData.get("description");
     const category = formData.get("category");
@@ -79,14 +185,12 @@ export async function POST(req: Request) {
     const thumbnailIndexRaw = formData.get("thumbnailIndex");
     const imageEntries = formData.getAll("image");
 
-    // 3. Validate required fields
     if (!title || typeof title !== "string") {
       return NextResponse.json(
         { error: "Title is required" },
         { status: 400 },
       );
     }
-
     const titleTrimmed = title.trim();
     if (!titleTrimmed) {
       return NextResponse.json(
@@ -98,6 +202,13 @@ export async function POST(req: Request) {
     const imageFiles = imageEntries.filter(
       (entry): entry is File => entry instanceof File && entry.size > 0,
     );
+
+    if (imageFiles.length === 0) {
+      return NextResponse.json(
+        { error: "At least one image is required" },
+        { status: 400 },
+      );
+    }
 
     const uploadedImages: { secureUrl: string; publicId: string }[] = [];
 
@@ -125,13 +236,15 @@ export async function POST(req: Request) {
 
     const thumbnailIndex =
       typeof thumbnailIndexRaw === "string" && /^\d+$/.test(thumbnailIndexRaw)
-        ? Math.min(Math.max(0, parseInt(thumbnailIndexRaw, 10)), Math.max(0, uploadedImages.length - 1))
+        ? Math.min(
+            Math.max(0, parseInt(thumbnailIndexRaw, 10)),
+            Math.max(0, uploadedImages.length - 1),
+          )
         : 0;
     const chosenImage = uploadedImages[thumbnailIndex] ?? uploadedImages[0] ?? null;
     const imageUrl = chosenImage?.secureUrl ?? null;
     const imagePublicId = chosenImage?.publicId ?? null;
 
-    // 5. Create project and project images in a transaction
     const project = await prisma.project.create({
       data: {
         title: titleTrimmed,
@@ -140,7 +253,9 @@ export async function POST(req: Request) {
             ? description.trim() || null
             : null,
         category:
-          category && typeof category === "string" ? category.trim() || null : null,
+          category && typeof category === "string"
+            ? category.trim() || null
+            : null,
         featured: typeof featured === "string" ? featured === "true" : false,
         imageUrl,
         imagePublicId,
@@ -155,7 +270,6 @@ export async function POST(req: Request) {
       include: { images: { orderBy: { sortOrder: "asc" } } },
     });
 
-    // 6. Return created project with 201 status
     return NextResponse.json(project, { status: 201 });
   } catch {
     for (const publicId of uploadedPublicIds) {

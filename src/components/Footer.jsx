@@ -29,6 +29,7 @@ export default function Footer() {
                 width={200}
                 height={60}
                 className="h-auto w-full max-w-50"
+                style={{ width: "auto", height: "auto" }}
                 priority
               />
             ) : (
