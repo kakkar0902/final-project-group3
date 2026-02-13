@@ -10,13 +10,13 @@ export default function ContactPage() {
             Get In Touch
           </h1>
           <p className="text-lg text-muted-foreground">
-            Have a project in mind? We'd love to hear from you. Reach out and let's discuss how we can bring your vision to life.
+            {"Have a project in mind? We'd love to hear from you. Reach out and let's discuss how we can bring your vision to life."}
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-          <ContactForm />
           <ContactInformation />
+          <ContactForm />
         </div>
       </div>
     </div>

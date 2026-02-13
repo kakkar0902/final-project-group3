@@ -43,13 +43,13 @@ export default function ContactForm() {
             htmlFor="phone"
             className="block text-sm font-medium mb-2"
           >
-            Phone
+            Phone <em>(Optional)</em>
           </label>
           <input
             type="tel"
             id="phone"
             name="phone"
-            placeholder="(555) 123-4567"
+            placeholder="(902) 123-4567"
             className="w-full px-4 py-3 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent placeholder:text-muted-foreground"
           />
         </div>

@@ -117,7 +117,7 @@ h6 {
   font-family: var(--font-serif);
 }
 
-* {
+*, ::before, ::after {
   border-color: var(--border);
 }
 
