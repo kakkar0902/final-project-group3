@@ -546,8 +546,14 @@ export default function ProjectsPage() {
     fetchProjects({ limit: Math.max(PAGE_SIZE, projects.length) });
   }, [fetchProjects, projects.length]);
 
-  const handleEdit = useCallback((project: ProjectApiResponse) => {
-    setEditingProject(project);
+  const handleEdit = useCallback(async (project: ProjectApiResponse) => {
+    const res = await fetch(`/api/projects/${project.id}`, { credentials: 'include' });
+    if (res.ok) {
+      const full = await res.json();
+      setEditingProject(full);
+    } else {
+      setEditingProject(project);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
