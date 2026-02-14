@@ -45,6 +45,7 @@ function ProjectCard({
   isAuthenticated = false,
   onEdit,
   onDelete,
+  onPhotoClick,
   deletingId,
 }: {
   project: ProjectApiResponse;
@@ -52,20 +53,32 @@ function ProjectCard({
   isAuthenticated?: boolean;
   onEdit?: (project: ProjectApiResponse) => void;
   onDelete?: (id: string) => void;
+  onPhotoClick?: (project: ProjectApiResponse) => void;
   deletingId?: string | null;
 }) {
+  const handleImageClick = () => {
+    if (project.imageUrl && onPhotoClick) onPhotoClick(project);
+  };
+
   return (
     <div className="bg-card border border-border rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col">
       <div className="relative h-72 bg-muted shrink-0">
         {project.imageUrl ? (
-          <Image
-            src={project.imageUrl}
-            alt={project.title}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover"
-            priority={priority}
-          />
+          <button
+            type="button"
+            onClick={handleImageClick}
+            className="absolute inset-0 w-full h-full cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-t-xl touch-manipulation"
+            aria-label={`View full size: ${project.title}`}
+          >
+            <Image
+              src={project.imageUrl}
+              alt={project.title}
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              className="object-cover pointer-events-none"
+              priority={priority}
+            />
+          </button>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/50 text-sm">
             No image
@@ -76,8 +89,8 @@ function ProjectCard({
             Featured
           </span>
         )}
-        {/* Overlay: title, tags, date */}
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent pt-12 px-3 pb-3">
+        {/* Overlay: title, tags, date — pointer-events-none so taps pass through to open photo modal */}
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent pt-12 px-3 pb-3 pointer-events-none">
           <h4 className="font-bold text-lg text-white drop-shadow-sm">{project.title}</h4>
           <div className="min-h-[1.5rem] flex flex-wrap gap-1.5 mt-1.5 mb-1">
             {project.tags?.map((tag) => (
@@ -190,8 +203,8 @@ function SortableProjectCard({
             Featured
           </span>
         )}
-        {/* Overlay: title, tags, date */}
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent pt-12 px-3 pb-3">
+        {/* Overlay: title, tags, date — pointer-events-none so taps pass through to open photo modal */}
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent pt-12 px-3 pb-3 pointer-events-none">
           <h4 className="font-bold text-lg text-white drop-shadow-sm">{project.title}</h4>
           <div className="min-h-[1.5rem] flex flex-wrap gap-1.5 mt-1.5 mb-1">
             {project.tags?.map((tag) => (
@@ -254,6 +267,14 @@ export default function ProjectsPage() {
   const [dateKeyOfDragged, setDateKeyOfDragged] = useState<string | null>(null);
   const [editingProject, setEditingProject] = useState<ProjectApiResponse | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [photoModalProject, setPhotoModalProject] = useState<ProjectApiResponse | null>(null);
+  const [photoModalIndex, setPhotoModalIndex] = useState(0);
+  const [photoModalDragOffset, setPhotoModalDragOffset] = useState(0);
+  const [photoModalIsDragging, setPhotoModalIsDragging] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartOffset = useRef(0);
+  const carouselContainerRef = useRef<HTMLDivElement | null>(null);
+  const photoModalPushedStateRef = useRef(false);
 
   const maxDisplayCountRef = useRef(PAGE_SIZE);
   maxDisplayCountRef.current = Math.max(maxDisplayCountRef.current, projects.length);
@@ -337,6 +358,59 @@ export default function ProjectsPage() {
     fetchTagNames();
     fetchYears();
   }, [fetchTagNames, fetchYears]);
+
+  // Lock body scroll when photo modal is open (mobile-friendly)
+  useEffect(() => {
+    if (photoModalProject) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [photoModalProject]);
+
+  // Push history state when photo modal opens so mobile back button closes modal instead of leaving page
+  useEffect(() => {
+    if (!photoModalProject) return;
+    const url = window.location.pathname + window.location.search + window.location.hash;
+    window.history.pushState({ photoModal: true }, '', url);
+    photoModalPushedStateRef.current = true;
+  }, [photoModalProject]);
+
+  // Handle back button (and history.back()): close modal when our pushed state is popped
+  useEffect(() => {
+    const onPopState = () => {
+      photoModalPushedStateRef.current = false;
+      setPhotoModalProject(null);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const closePhotoModal = useCallback(() => {
+    if (photoModalPushedStateRef.current) {
+      photoModalPushedStateRef.current = false;
+      window.history.back();
+    } else {
+      setPhotoModalProject(null);
+    }
+  }, []);
+
+  // Close photo modal on Escape; Arrow keys for carousel
+  useEffect(() => {
+    if (!photoModalProject) return;
+    const imageUrls =
+      photoModalProject.images?.length ? photoModalProject.images.map((i) => i.imageUrl) : photoModalProject.imageUrl ? [photoModalProject.imageUrl] : [];
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closePhotoModal();
+      if (imageUrls.length <= 1) return;
+      if (e.key === 'ArrowLeft') setPhotoModalIndex((i) => (i - 1 + imageUrls.length) % imageUrls.length);
+      if (e.key === 'ArrowRight') setPhotoModalIndex((i) => (i + 1) % imageUrls.length);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [photoModalProject, closePhotoModal]);
 
   // Mouse: small movement to start drag. Touch: long-press (250ms) so scroll works until then.
   const sensors = useSensors(
@@ -619,6 +693,12 @@ export default function ProjectsPage() {
                   isAuthenticated={isAuthenticated}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
+                  onPhotoClick={(project) => {
+                  setPhotoModalProject(project);
+                  setPhotoModalIndex(0);
+                  setPhotoModalDragOffset(0);
+                  setPhotoModalIsDragging(false);
+                }}
                   deletingId={deletingId}
                 />
               ))}
@@ -674,6 +754,165 @@ export default function ProjectsPage() {
             )}
           </>
         )}
+
+        {/* Photo lightbox modal with carousel — only used when not in reorder mode (ProjectCard only) */}
+        {photoModalProject && (() => {
+          const imageUrls =
+            photoModalProject.images?.length
+              ? photoModalProject.images.map((i) => i.imageUrl)
+              : photoModalProject.imageUrl
+                ? [photoModalProject.imageUrl]
+                : [];
+          if (imageUrls.length === 0) return null;
+          const currentUrl = imageUrls[photoModalIndex] ?? imageUrls[0];
+          const canGoPrev = imageUrls.length > 1;
+          const canGoNext = imageUrls.length > 1;
+          const goPrev = () => {
+            setPhotoModalIndex((i) => (i - 1 + imageUrls.length) % imageUrls.length);
+            setPhotoModalDragOffset(0);
+          };
+          const goNext = () => {
+            setPhotoModalIndex((i) => (i + 1) % imageUrls.length);
+            setPhotoModalDragOffset(0);
+          };
+          const handleTouchStart = (e: React.TouchEvent) => {
+            if (imageUrls.length <= 1) return;
+            touchStartX.current = e.touches[0].clientX;
+            touchStartOffset.current = photoModalDragOffset;
+            setPhotoModalIsDragging(true);
+          };
+          const handleTouchMove = (e: React.TouchEvent) => {
+            if (touchStartX.current == null || imageUrls.length <= 1) return;
+            const clientX = e.touches[0].clientX;
+            let rawOffset = touchStartOffset.current + (clientX - touchStartX.current);
+            if (photoModalIndex <= 0 && rawOffset > 0) rawOffset = rawOffset * 0.3;
+            if (photoModalIndex >= imageUrls.length - 1 && rawOffset < 0) rawOffset = rawOffset * 0.3;
+            setPhotoModalDragOffset(rawOffset);
+          };
+          const handleTouchEnd = (e: React.TouchEvent) => {
+            if (touchStartX.current == null || imageUrls.length <= 1) {
+              setPhotoModalIsDragging(false);
+              return;
+            }
+            const dx = e.changedTouches[0].clientX - touchStartX.current;
+            const width = carouselContainerRef.current?.offsetWidth ?? 300;
+            const threshold = Math.min(width * 0.25, 80);
+            if (dx > threshold && photoModalIndex > 0) goPrev();
+            else if (dx < -threshold && photoModalIndex < imageUrls.length - 1) goNext();
+            else setPhotoModalDragOffset(0);
+            touchStartX.current = null;
+            setPhotoModalIsDragging(false);
+          };
+          return (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Viewing ${photoModalProject.title}, image ${photoModalIndex + 1} of ${imageUrls.length}`}
+              className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/90 touch-manipulation"
+              onClick={() => closePhotoModal()}
+            >
+              <button
+                type="button"
+                onClick={() => closePhotoModal()}
+                className="absolute top-4 right-4 z-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                aria-label="Close"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              {canGoPrev && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); goPrev(); }}
+                  className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-10 min-h-[44px] min-w-[44px] hidden sm:flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  aria-label="Previous image"
+                >
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+              )}
+              {canGoNext && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); goNext(); }}
+                  className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-10 min-h-[44px] min-w-[44px] hidden sm:flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  aria-label="Next image"
+                >
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              )}
+
+              <div
+                ref={carouselContainerRef}
+                className="relative w-full h-full sm:max-w-4xl sm:h-[85vh] flex items-center overflow-hidden touch-pan-y"
+                onClick={(e) => e.stopPropagation()}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+              >
+                {imageUrls.length > 1 ? (
+                  <div
+                    className="flex h-full shrink-0"
+                    style={{
+                      width: `${imageUrls.length * 100}%`,
+                      transform: `translateX(calc(-${(100 * photoModalIndex) / imageUrls.length}% + ${photoModalDragOffset}px))`,
+                      transition: photoModalIsDragging ? 'none' : 'transform 0.25s ease-out',
+                    }}
+                  >
+                    {imageUrls.map((url, i) => (
+                      <div
+                        key={`${url}-${i}`}
+                        className="relative h-full shrink-0 flex items-center justify-center"
+                        style={{ width: `${100 / imageUrls.length}%` }}
+                      >
+                        <Image
+                          src={url}
+                          alt={`${photoModalProject.title} — image ${i + 1} of ${imageUrls.length}`}
+                          fill
+                          className="object-contain sm:rounded-lg pointer-events-none"
+                          sizes="(max-width: 640px) 100vw, 896px"
+                          priority={i <= 1}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    <Image
+                      src={currentUrl}
+                      alt={`${photoModalProject.title} — image 1 of 1`}
+                      fill
+                      className="object-contain sm:rounded-lg"
+                      sizes="(max-width: 640px) 100vw, 896px"
+                      priority
+                    />
+                  </div>
+                )}
+              </div>
+
+              {imageUrls.length > 1 && (
+                <div
+                  className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full bg-black/50 backdrop-blur-sm px-2 py-1.5"
+                  aria-hidden
+                >
+                  {imageUrls.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`rounded-full transition-all ${
+                        i === photoModalIndex ? 'h-1.5 w-1.5 bg-white' : 'h-1 w-1 bg-white/50'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

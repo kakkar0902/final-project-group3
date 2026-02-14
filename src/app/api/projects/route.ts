@@ -98,7 +98,10 @@ export async function GET(req: Request) {
     const projects = await prisma.project.findMany({
       where,
       orderBy: [{ createdAt: "desc" }, { displayOrder: "asc" }],
-      include: { projectTags: { include: { tag: { select: { name: true } } } } },
+      include: {
+        projectTags: { include: { tag: { select: { name: true } } } },
+        images: { orderBy: { sortOrder: "asc" }, select: { imageUrl: true } },
+      },
       ...(limit != null && {
         take: limit + 1,
         skip: offset,
@@ -109,6 +112,7 @@ export async function GET(req: Request) {
       ...p,
       tags: p.projectTags.map((pt) => pt.tag.name),
       projectTags: undefined,
+      images: p.images.map((img) => ({ imageUrl: img.imageUrl })),
     }));
 
     if (limit != null) {

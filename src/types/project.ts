@@ -6,6 +6,8 @@ export interface ProjectApiResponse {
   featured: boolean;
   imageUrl: string | null;
   imagePublicId: string | null;
+  /** All project images in sort order (for lightbox carousel). Omitted in some responses. */
+  images?: { imageUrl: string }[];
   displayOrder: number;
   createdAt: string;
   updatedAt: string;

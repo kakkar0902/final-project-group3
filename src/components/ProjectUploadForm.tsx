@@ -4,11 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import TagInput from './TagInput';
 
+/** Full image from GET /api/projects/[id]; list API may only return { imageUrl }. */
 interface ProjectImage {
-  id: string;
   imageUrl: string;
-  imagePublicId: string;
-  sortOrder: number;
+  id?: string;
+  imagePublicId?: string;
+  sortOrder?: number;
 }
 
 interface Project {
@@ -81,7 +82,7 @@ export default function ProjectUploadForm({ onSuccess, editProject }: ProjectUpl
     }
     const initialImages =
       editProject.images?.length
-        ? editProject.images.map((i) => ({ url: i.imageUrl, publicId: i.imagePublicId }))
+        ? editProject.images.map((i) => ({ url: i.imageUrl, publicId: i.imagePublicId ?? '' }))
         : editProject.imageUrl && editProject.imagePublicId
           ? [{ url: editProject.imageUrl, publicId: editProject.imagePublicId }]
           : [];
@@ -96,7 +97,7 @@ export default function ProjectUploadForm({ onSuccess, editProject }: ProjectUpl
       .then((res) => (res.ok ? res.json() : null))
       .then((project: Project | null) => {
         if (project?.images?.length) {
-          setExistingImages(project.images.map((i) => ({ url: i.imageUrl, publicId: i.imagePublicId })));
+          setExistingImages(project.images.map((i) => ({ url: i.imageUrl, publicId: i.imagePublicId ?? '' })));
           const idx = project.images.findIndex((i) => i.imagePublicId === project.imagePublicId);
           setThumbnailIndex(idx >= 0 ? idx : 0);
         }
