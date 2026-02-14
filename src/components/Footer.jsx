@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
@@ -23,14 +22,11 @@ export default function Footer() {
           {/* Business Logo */}
           <div className="flex items-start justify-center w-full">
             {mounted ? (
-              <Image
+              <img
                 src={resolvedTheme === "dark" ? "/logo-dark.svg" : "/logo-light.svg"}
                 alt="Shoreline Woodworks"
-                width={200}
-                height={60}
                 className="h-auto w-full max-w-50"
-                style={{ width: "auto", height: "auto" }}
-                priority
+                fetchPriority="high"
               />
             ) : (
               <div className="h-15 w-full max-w-50 animate-pulse bg-muted rounded" />
