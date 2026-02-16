@@ -16,7 +16,7 @@ export default function Footer() {
   }, []);
 
   return (
-    <footer className="bg-footer shadow-inner mt-auto">
+    <footer className="bg-footer shadow-inner mt-auto" data-testid="footer">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Main Footer Content */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-6 justify-items-center">
@@ -74,7 +74,7 @@ export default function Footer() {
               </div>
 
               {/* Contact - visible on mobile within the wrapper */}
-              <div className="md:hidden">
+              <div className="md:hidden" data-testid="footer-contact-mobile">
                 <h4 className="text-sm font-semibold text-foreground/60 uppercase tracking-wider mb-4">
                   Contact
                 </h4>
@@ -122,7 +122,7 @@ export default function Footer() {
             </div>
 
             {/* Contact - visible on desktop as separate grid item */}
-            <div className="hidden md:block">
+            <div className="hidden md:block" data-testid="footer-contact-desktop">
               <h4 className="text-sm font-semibold text-foreground/60 uppercase tracking-wider mb-4">
                 Contact
               </h4>
@@ -171,7 +171,7 @@ export default function Footer() {
         </div>
 
         {/* Copyright */}
-        <div className="border-t border-border pt-6">
+        <div className="border-t border-border pt-6" data-testid="footer-copyright">
           <p className="text-center text-sm text-foreground/60">
             © {currentYear} Shoreline Woodworks. All rights reserved.
           </p>

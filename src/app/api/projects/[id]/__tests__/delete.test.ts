@@ -21,7 +21,7 @@ import { DELETE } from "../route";
 import { prisma } from "@/lib/db";
 import { verifyAdmin } from "@/lib/auth-guards";
 import { deleteFolder, deleteImage } from "@/lib/cloudinary";
-import { mockProjects } from "../../__tests__/fixtures";
+import { mockProjects } from "../../../../../../tests/fixtures/projects";
 
 // Mock auth guard used by the DELETE handler so we can simulate admin vs
 // unauthenticated/forbidden outcomes.

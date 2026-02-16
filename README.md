@@ -33,4 +33,7 @@
 ## [Testing](./docs/testing.md)
 * [What is Cypress?](./docs/testing.md#what-is-cypress)
 * [When to use Vitest v/s Cypress?](./docs/testing.md#when-to-use-vitest-vs-cypress)
+* [Where should you place your test files?](./docs/testing.md#where-should-you-place-your-test-files)
+* [What is the `tests` folder for?](./docs/testing.md#what-is-the-tests-folder-for)
+* [Tips for when writing your Test Files](./docs/testing.md#tips-for-when-writing-your-test-files)
 * [Testing your changes](./docs/testing.md#testing-your-changes)

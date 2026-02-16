@@ -10,13 +10,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import Navbar from "@/components/Navbar";
 
-/**
- * Mock next-themes so ThemeToggle doesn't require a ThemeProvider in the test.
- * Without this, useTheme() would throw or behave unpredictably.
- */
-vi.mock("next-themes", () => ({
-	useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
-}));
+vi.mock("next-themes", async () => (await import("../../tests/mocks/next-themes")).default);
 
 /**
  * Mock next-auth/react so useSession doesn't require a SessionProvider in the test.

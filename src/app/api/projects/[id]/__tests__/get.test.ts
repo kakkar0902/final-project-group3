@@ -14,7 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "../route";
 import { prisma } from "@/lib/db";
-import { mockProjects } from "../../__tests__/fixtures";
+import { mockProjects } from "../../../../../../tests/fixtures/projects";
 
 // Mock auth to avoid pulling in next-auth/next during tests; the GET [id]
 // handler is public, so auth is irrelevant for these scenarios.
