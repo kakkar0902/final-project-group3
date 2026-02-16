@@ -1,9 +1,20 @@
+/**
+ * @module api/projects/order/route
+ * @description API route for reordering projects within their date groups.
+ * Admin-only endpoint that updates project timestamps to reflect new order.
+ */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guards";
 
+/** Runtime configuration for this API route */
 export const runtime = "nodejs";
 
+/**
+ * Generate a date key string for grouping projects by day.
+ * @param d - The date to convert
+ * @returns Date string in YYYY-MM-DD format
+ */
 function dateKey(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -14,11 +25,16 @@ function dateKey(d: Date): string {
 /**
  * PATCH /api/projects/order
  *
- * Admin-only. Body: { orderedIds: string[] }. Order is preserved by updating
- * only createdAt: within each calendar day, timestamps are reassigned so the
- * first in the list has the latest time that day. The list is sorted by
- * createdAt desc, so the saved order is reflected. Cloudinary folder names
- * and assets are not changed.
+ * Admin-only. Reorders projects by updating their timestamps within each calendar day.
+ * @param req - The incoming request object with JSON body
+ * @returns JSON response with `{ success: true }` or error
+ *
+ * @example Request body:
+ * ```json
+ * { "orderedIds": ["id1", "id2", "id3"] }
+ * ```
+ * Order is preserved by reassigning timestamps so the first in the list
+ * has the latest time that day. Cloudinary assets are not changed.
  */
 export async function PATCH(req: Request) {
   const adminResult = await requireAdmin();

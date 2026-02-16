@@ -1,15 +1,26 @@
+/**
+ * @module api/tags/route
+ * @description API route for tag operations (list, search).
+ * Supports public tag search/listing and admin-only full tag management.
+ */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guards";
 
+/** Runtime configuration for this API route */
 export const runtime = "nodejs";
 
 /**
  * GET /api/tags
  *
- * - ?q=... : Returns tag names matching the query (ILIKE). Used for tag suggestions. Public.
- * - ?list=names : Returns all tag names. Public. Used for /projects page filter dropdown.
- * - No query: Returns all tags with project count. Admin-only. Used for tag editor.
+ * Multi-purpose tag listing endpoint with different behaviors based on query params.
+ * @param req - The incoming request object
+ * @returns JSON response with tags (format depends on query params)
+ *
+ * @example Query parameters:
+ * - `?q=...` : Returns tag names matching the query (case-insensitive). Public.
+ * - `?list=names` : Returns all tag names. Public. Used for filter dropdowns.
+ * - No query: Returns all tags with project count. Admin-only.
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);

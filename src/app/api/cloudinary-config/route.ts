@@ -1,3 +1,8 @@
+/**
+ * @module api/cloudinary-config/route
+ * @description API route for generating signed Cloudinary upload parameters.
+ * Enables secure client-side uploads with progress tracking.
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guards";
@@ -8,15 +13,21 @@ import {
   getSignedUploadParams,
 } from "@/lib/cloudinary";
 
+/** Runtime configuration for this API route */
 export const runtime = "nodejs";
 
+/** Minimum valid year for project dates */
 const MIN_YEAR = 1970;
+/** Minimum valid month (January) */
 const MIN_MONTH = 1;
+/** Maximum valid month (December) */
 const MAX_MONTH = 12;
 
 /**
  * Derive a Cloudinary folder path from a project's createdAt, for legacy projects
  * that have no cloudinaryFolder stored.
+ * @param createdAt - The project's creation date
+ * @returns The Cloudinary folder path in format `projects/YYYYMMDD-HHmmss`
  */
 function folderFromCreatedAt(createdAt: Date): string {
   const d = new Date(createdAt);
@@ -29,7 +40,11 @@ function folderFromCreatedAt(createdAt: Date): string {
   return `${DEFAULT_PROJECTS_FOLDER}/${y}${m}${day}-${h}${min}${s}`;
 }
 
-/** Parse HHmmss suffix to seconds since midnight. */
+/**
+ * Parse HHmmss suffix to seconds since midnight.
+ * @param suffix - Time suffix in HHmmss format (6 digits)
+ * @returns Seconds since midnight, or 0 if invalid format
+ */
 function suffixToSeconds(suffix: string): number {
   if (!/^\d{6}$/.test(suffix)) return 0;
   const h = parseInt(suffix.slice(0, 2), 10);
@@ -38,7 +53,11 @@ function suffixToSeconds(suffix: string): number {
   return h * 3600 + m * 60 + s;
 }
 
-/** Seconds since midnight to HHmmss (pad to 6 digits). */
+/**
+ * Convert seconds since midnight to HHmmss format.
+ * @param seconds - Number of seconds since midnight
+ * @returns Time string in HHmmss format (6 digits, zero-padded)
+ */
 function secondsToSuffix(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds)) % 60;
   const m = Math.floor(seconds / 60) % 60;
@@ -58,11 +77,14 @@ function secondsToSuffix(seconds: number): string {
  * the progress bar reflects real upload progress. Only your server can
  * generate valid signatures.
  *
- * Query params:
- * - projectId (optional): When editing an existing project, pass its ID so images
+ * @param req - The incoming Next.js request object
+ * @returns JSON response with signed upload parameters or error
+ *
+ * @example Query params:
+ * - `projectId` (optional): When editing an existing project, pass its ID so images
  *   are uploaded to that project's Cloudinary folder. Omit for new projects.
- * - year, month (required if date is used): Project date; folder = projects/YYYYMMDD-HHmmss (midnight by default; +1s if same day exists).
- * - day (optional): Day of month (default 1). Omit for "first of month".
+ * - `year`, `month` (required if date is used): Project date; folder = projects/YYYYMMDD-HHmmss
+ * - `day` (optional): Day of month (default 1). Omit for "first of month".
  */
 export async function GET(req: NextRequest) {
   const adminResult = await requireAdmin();

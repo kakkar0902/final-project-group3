@@ -1,3 +1,8 @@
+/**
+ * @module api/projects/[id]/route
+ * @description API routes for single project operations (get, update, delete).
+ * Supports fetching project details, updating with new images/metadata, and deletion.
+ */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyAdmin } from "@/lib/auth-guards";
@@ -10,8 +15,10 @@ import {
   uploadImage,
 } from "@/lib/cloudinary";
 
+/** Runtime configuration for this API route */
 export const runtime = "nodejs";
 
+/** Set of allowed MIME types for image uploads */
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
@@ -20,12 +27,20 @@ const ALLOWED_IMAGE_TYPES = new Set([
   "image/gif",
 ]);
 
+/** Maximum allowed image file size in bytes (10MB) */
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+/** Minimum valid year for project dates */
 const MIN_YEAR = 1970;
+/** Minimum valid month (January) */
 const MIN_MONTH = 1;
+/** Maximum valid month (December) */
 const MAX_MONTH = 12;
 
-/** Parse HHmmss suffix to seconds since midnight. */
+/**
+ * Parse HHmmss suffix to seconds since midnight.
+ * @param suffix - Time suffix in HHmmss format (6 digits)
+ * @returns Seconds since midnight, or 0 if invalid format
+ */
 function suffixToSeconds(suffix: string): number {
   if (!/^\d{6}$/.test(suffix)) return 0;
   const h = parseInt(suffix.slice(0, 2), 10);
@@ -34,6 +49,11 @@ function suffixToSeconds(suffix: string): number {
   return h * 3600 + m * 60 + s;
 }
 
+/**
+ * Convert seconds since midnight to HHmmss format.
+ * @param seconds - Number of seconds since midnight
+ * @returns Time string in HHmmss format (6 digits, zero-padded)
+ */
 function secondsToSuffix(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds)) % 60;
   const m = Math.floor(seconds / 60) % 60;
@@ -45,7 +65,12 @@ function secondsToSuffix(seconds: number): string {
   ].join("");
 }
 
-/** Derive folder from project createdAt for legacy projects without cloudinaryFolder. */
+/**
+ * Derive Cloudinary folder path from project data.
+ * Uses cloudinaryFolder if set, otherwise generates from createdAt for legacy projects.
+ * @param project - Project object with cloudinaryFolder and createdAt
+ * @returns The Cloudinary folder path
+ */
 function folderForProject(project: {
   cloudinaryFolder: string | null;
   createdAt: Date;
@@ -62,8 +87,13 @@ function folderForProject(project: {
 }
 
 /**
- * Resolve a unique folder and createdAt for the given date, excluding the current
- * project so re-saving the same date keeps the same folder.
+ * Resolve a unique folder and createdAt for the given date.
+ * Excludes the current project so re-saving the same date keeps the same folder.
+ * @param year - The year component of the date
+ * @param month - The month component (1-12)
+ * @param day - The day component (1-31), or undefined for month-only dates
+ * @param excludeProjectId - Project ID to exclude from collision detection
+ * @returns Object with unique folder path and corresponding createdAt date
  */
 async function resolveFolderForDate(
   year: number,
@@ -95,9 +125,11 @@ async function resolveFolderForDate(
 }
 
 /**
- * Find the displayOrder index where a project with the given createdAt should sit
- * so that when listed by displayOrder, newest first (0 = newest). Excludes the
- * project being moved (excludeProjectId) so we don't count it in the list.
+ * Find the displayOrder index where a project with the given createdAt should sit.
+ * When listed by displayOrder, newest first (0 = newest).
+ * @param createdAt - The creation date to find position for
+ * @param excludeProjectId - Project ID to exclude from the calculation
+ * @returns The displayOrder index where the project should be inserted
  */
 async function getDisplayOrderInsertIndex(
   createdAt: Date,
@@ -112,7 +144,11 @@ async function getDisplayOrderInsertIndex(
   return insertIndex;
 }
 
+/**
+ * Route parameters for dynamic [id] routes.
+ */
 type RouteParams = {
+  /** Promise resolving to route parameters containing the project ID */
   params: Promise<{ id: string }>;
 };
 
@@ -120,6 +156,9 @@ type RouteParams = {
  * GET /api/projects/[id]
  *
  * Public endpoint that returns a single project by id, or 404 if it does not exist.
+ * @param _req - The incoming request object (unused)
+ * @param params - Route parameters containing the project ID
+ * @returns JSON response with project data or 404 error
  */
 export async function GET(_req: Request, { params }: RouteParams) {
   try {
@@ -153,8 +192,20 @@ export async function GET(_req: Request, { params }: RouteParams) {
  * PATCH /api/projects/[id]
  *
  * Admin-only endpoint that updates an existing project using multipart/form-data.
- * Supports optional `title`, `description`, `tags`, `featured`, `image` (replace),
- * and `removeImage` (delete existing image without replacement), and returns the updated project.
+ * @param req - The incoming request object with form data
+ * @param params - Route parameters containing the project ID
+ * @returns JSON response with updated project or error
+ *
+ * @example Supported form fields:
+ * - `title`: Project title (required)
+ * - `description`: Project description
+ * - `tags`: JSON array of tag names
+ * - `featured`: "true" or "false"
+ * - `image`: New image files to add
+ * - `removeImage`: "true" to remove all existing images
+ * - `keepPublicIds`: Public IDs of images to keep
+ * - `thumbnailIndex`: Index of image to use as thumbnail
+ * - `projectDateYear`, `projectDateMonth`, `projectDateDay`: Date components
  */
 export async function PATCH(req: Request, { params }: RouteParams) {
   const { id } = await params;
@@ -572,8 +623,10 @@ export async function PATCH(req: Request, { params }: RouteParams) {
 /**
  * DELETE /api/projects/[id]
  *
- * Admin-only endpoint that deletes a project and, if present, its associated Cloudinary image.
- * Returns `{ success: true }` when deletion succeeds, or 404 if the project is not found.
+ * Admin-only endpoint that deletes a project and its associated Cloudinary assets.
+ * @param req - The incoming request object
+ * @param params - Route parameters containing the project ID
+ * @returns JSON response with `{ success: true }` or error (404 if not found)
  */
 export async function DELETE(req: Request, { params }: RouteParams) {
   const { id } = await params;
