@@ -1,3 +1,8 @@
+/**
+ * @module api/projects/route
+ * @description API routes for listing and creating projects.
+ * Supports filtering, pagination, and both JSON and multipart/form-data uploads.
+ */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guards";
@@ -9,8 +14,10 @@ import {
 } from "@/lib/cloudinary";
 import { resolveTagNamesToIds } from "@/lib/tags";
 
+/** Runtime configuration for this API route */
 export const runtime = "nodejs";
 
+/** Set of allowed MIME types for image uploads */
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
@@ -19,12 +26,14 @@ const ALLOWED_IMAGE_TYPES = new Set([
   "image/gif",
 ]);
 
+/** Maximum allowed image file size in bytes (10MB) */
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
 /**
- * For CREATE: assign displayOrder so the new project sits with others on the same date.
+ * Calculate the display order for a new project based on its creation date.
  * Projects are listed by date (newest first), then by displayOrder within the same day.
- * Returns max(displayOrder) among projects with the same calendar day as createdAt, +1.
+ * @param createdAt - The creation date of the new project
+ * @returns The next available displayOrder value for projects on that day
  */
 async function getDisplayOrderForNewProject(createdAt: Date): Promise<number> {
   const startOfDay = new Date(createdAt);
@@ -46,11 +55,15 @@ async function getDisplayOrderForNewProject(createdAt: Date): Promise<number> {
  * GET /api/projects
  *
  * Returns a list of projects, optionally filtered by `tag`, `featured`, and `year`.
- * - tag: filter by tag name, or "None" for projects with no tags
- * - featured: filter by featured status
- * - year: filter by year (e.g. 2025)
- * - limit: max number to return; when set, response is { projects, hasMore }
- * - offset: skip N projects (for pagination with limit)
+ * @param req - The incoming request object
+ * @returns JSON response with projects array or `{ projects, hasMore }` when paginated
+ *
+ * @example Query parameters:
+ * - `tag`: Filter by tag name, or "None" for projects with no tags
+ * - `featured`: Filter by featured status ("true" or "false")
+ * - `year`: Filter by year (e.g., 2025)
+ * - `limit`: Max number to return; when set, response is `{ projects, hasMore }`
+ * - `offset`: Skip N projects (for pagination with limit)
  */
 export async function GET(req: Request) {
   try {
@@ -133,10 +146,14 @@ export async function GET(req: Request) {
 /**
  * POST /api/projects
  *
- * Admin-only. Creates a new project. Accepts either:
- * - application/json with { title, description?, tags?, featured?, thumbnailIndex?, uploadedImages? }
- *   (uploadedImages = pre-uploaded to Cloudinary from client; progress is shown during that upload).
- * - multipart/form-data with title and optional image files (server uploads to Cloudinary).
+ * Admin-only. Creates a new project.
+ * @param req - The incoming request object
+ * @returns JSON response with the created project (status 201) or error
+ *
+ * @example Accepts either:
+ * - `application/json` with `{ title, description?, tags?, featured?, thumbnailIndex?, uploadedImages? }`
+ *   (uploadedImages = pre-uploaded to Cloudinary from client)
+ * - `multipart/form-data` with title and optional image files (server uploads to Cloudinary)
  */
 export async function POST(req: Request) {
   const adminResult = await requireAdmin();
@@ -153,6 +170,13 @@ export async function POST(req: Request) {
   return handlePostFormData(req);
 }
 
+/**
+ * Handle POST request with JSON body.
+ * Creates a project using pre-uploaded Cloudinary images.
+ * @param req - The incoming request object with JSON body
+ * @returns JSON response with created project or error
+ * @internal
+ */
 async function handlePostJson(req: Request) {
   try {
     const body = await req.json();
@@ -291,6 +315,13 @@ async function handlePostJson(req: Request) {
   }
 }
 
+/**
+ * Handle POST request with multipart/form-data.
+ * Uploads images to Cloudinary server-side and creates the project.
+ * @param req - The incoming request object with form data
+ * @returns JSON response with created project or error
+ * @internal
+ */
 async function handlePostFormData(req: Request) {
   const uploadedPublicIds: string[] = [];
 
