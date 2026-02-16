@@ -1,9 +1,16 @@
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import AboutHero from './about-hero';
 import Story from './story';
 import WhatWeDo from './what-we-do';
 
-const ABOUT_KEYS = ['about.ourStoryHeading', 'about.ourStoryBody', 'about.whatWeDo'] as const;
+const ABOUT_KEYS = [
+  'about.pageTitle',
+  'about.pageTagline',
+  'about.ourStoryHeading',
+  'about.ourStoryBody',
+  'about.whatWeDo',
+] as const;
 
 type WhatWeDoStored = { heading: string; cards: { title: string; description: string }[] };
 
@@ -46,10 +53,11 @@ export default async function About() {
   return (
     <div className="pt-16">
       <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4">About Shoreline Woodworks</h1>
-          <p className="text-lg text-muted-foreground">Learn all about us — our craft, materials, and services.</p>
-        </div>
+        <AboutHero
+          initialTitle={settings['about.pageTitle']}
+          initialTagline={settings['about.pageTagline']}
+          isAdmin={isAdmin}
+        />
         <Story
           initialHeading={settings['about.ourStoryHeading']}
           initialBody={settings['about.ourStoryBody']}

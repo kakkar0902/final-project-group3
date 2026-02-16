@@ -4,7 +4,13 @@ import { requireAdmin } from "@/lib/auth-guards";
 
 export const runtime = "nodejs";
 
-const ABOUT_KEYS = ["about.ourStoryHeading", "about.ourStoryBody", "about.whatWeDo"] as const;
+const ABOUT_KEYS = [
+  "about.pageTitle",
+  "about.pageTagline",
+  "about.ourStoryHeading",
+  "about.ourStoryBody",
+  "about.whatWeDo",
+] as const;
 
 /**
  * GET /api/site-settings?keys=key1,key2
