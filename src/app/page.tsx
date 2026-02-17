@@ -1,9 +1,9 @@
+import LandingHeader from "@/app/components/LandingHeader";
+
 export default function Home() {
   return (
-    <div className="pt-16">
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <h1 className="text-4xl font-bold mb-4">Shoreline Woodworks</h1>
-      </div>
-    </div>
+    <main className="min-h-screen">
+      <LandingHeader />
+    </main>
   );
 }
